@@ -10,51 +10,83 @@ class Dashboard extends Component {
 	constructor(props) {
 		super(props)
 		this.state = {
-			data: []
+			data: [],
+			loadingFlag: false,
+			page: 1
 		}
-		// this.loadResults = this.loadResults.bind(this)
+		window.addEventListener('scroll', this.handleScroll.bind(this))
+
+		this.sock = new WebSocket("ws://localhost:5001");
+		this.getComment = this.getComment.bind(this)
+		this.getDataFromSocket = this.getDataFromSocket.bind(this)
 	}
 
-	componentDidMount() {
-		let sock = new WebSocket("ws://localhost:5001");
-		let parsedJSON = {};
-		let that = this;
-		sock.onopen = () => {
-			console.log("Socket connected successfully");
-			let params = {
-				type: "FETCH_DATA",
-				pageSize: 100,
-				pageNumber: 1
+	handleScroll(e) {
+		//this function will be triggered if user scrolls
+		let body = document.body,
+			html = document.documentElement;
+
+		let height = Math.max(body.scrollHeight, body.offsetHeight,
+			html.clientHeight, html.scrollHeight, html.offsetHeight);
+
+		let windowHeight = height;
+		let totalScrolled = window.innerHeight + window.scrollY;
+
+		if (totalScrolled + 100 > windowHeight) { //user reached at bottom
+			console.log("reached bottom")
+			if (!this.state.loadingFlag) { //to avoid multiple request
+				this.setState({
+					loadingFlag: true,
+				});
+				this.getComment();
 			}
-			sock.send(JSON.stringify(params));
+		}
+	}
+
+	getComment() {
+		//method to fetch comments will concat result to state.comment
+		var nextPage = this.state.page + 1; //increase the page count
+		this.setState({
+			loadingFlag: true,
+			page: nextPage
+		});
+		this.getDataFromSocket(nextPage)
+	}
+
+	getDataFromSocket(page) {
+		let parsedJSON = {};
+		let params = {
+			type: "FETCH_DATA",
+			pageSize: 100,
+			page: page
+		}
+		if (this.sock.readyState) {
+			this.sock.send(JSON.stringify(params));
+		} else {
+			this.sock.onopen = () => {
+				console.log("Socket connected successfully");
+				this.sock.send(JSON.stringify(params));
+			}
 		}
 
-		sock.onmessage = (event) => {
-
+		this.sock.onmessage = (event) => {
 			try { parsedJSON = JSON.parse(event.data); }
 			catch (e) {
 				console.error("Invalid data");
 			}
-			this.setState({ data: parsedJSON });
-			// that.loadResults(parsedJSON);
-			// this.loadResults(parsedJSON).bind(this);
+			this.setState({
+				data: this.state.data.concat(parsedJSON),
+				loadingFlag: false
+			});
 		}
-		// debugger
-		// this.loadResults(parsedJSON).bind(this);
 	}
 
-	// loadResults = (parsedJSON) => {
-	// 	let params = {
-	// 		data: parsedJSON
-	// 	}
-	// 	store.dispatch(getGridData(params));
-	// }
-	render() {
-		// debugger
-		// const {key} = this.props;
-		const { data } = this.state;
-		// const { data } = store.getState();
+	componentDidMount() {
+		this.getDataFromSocket(this.state.page);
+	}
 
+	render() {
+		const { data, loadingFlag } = this.state;
 		const headerNames = [];
 
 		if (data && data.length > 0) {
@@ -65,6 +97,7 @@ class Dashboard extends Component {
 
 		return (
 			<div className="table-wrapper">
+
 				<table>
 					<Header headerNames={headerNames} />
 					<tbody>
@@ -73,6 +106,7 @@ class Dashboard extends Component {
 						})}
 					</tbody>
 				</table>
+				<p className={loadingFlag ? 'loader' : 'loader hide'} >Loading...</p>
 			</div>
 
 		)

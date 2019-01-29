@@ -8,22 +8,16 @@ class Row extends PureComponent {
             keys.push(key);
             table.push(<td>{data[key]}</td>);
         }
-        debugger
         return table;
     }
 
 
     render() {
-
         const { data, index } = this.props;
-
         return (
             <tr>
-
                 <td>{index}</td>
                 {this.createTable(data)}
-
-
             </tr>
 
         );
